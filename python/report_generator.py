@@ -46,6 +46,12 @@ def default_alerts_path() -> Path:
     return Path(__file__).resolve().parent.parent / "Alerts.json"
 
 
+def default_report_path(alerts_path: str | Path | None = None) -> Path:
+    if alerts_path is None:
+        alerts_path = default_alerts_path()
+    return Path(alerts_path).resolve().with_name("report.html")
+
+
 def format_utc_datetime(dt: datetime.datetime) -> str:
     return dt.isoformat().replace("+00:00", "Z").replace("T", " ")
 
@@ -486,7 +492,7 @@ def write_html_report(summary: ReportSummary, alerts: list[Alert], stream: TextI
     stream.write("\n")
 
 
-def write_report(summary: ReportSummary, alerts: list[Alert], output_format: str, output: str | None, top_n: int) -> None:
+def write_report(summary: ReportSummary, alerts: list[Alert], output_format: str, output: str | Path | None, top_n: int) -> None:
     if output is None:
         stream = sys.stdout
         close_stream = False
@@ -525,8 +531,11 @@ def write_report(summary: ReportSummary, alerts: list[Alert], output_format: str
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate an IDS alert summary report.")
     parser.add_argument("--input", default=str(default_alerts_path()), help="Path to Alerts.json.")
-    parser.add_argument("--output", help="Optional report output path. Defaults to stdout.")
-    parser.add_argument("--format", choices=["text", "json", "csv", "html"], default="text", help="Report format.")
+    parser.add_argument(
+        "--output",
+        help="Optional report output path. Defaults to report.html next to the input alerts file for HTML reports and stdout for other formats.",
+    )
+    parser.add_argument("--format", choices=["text", "json", "csv", "html"], default="html", help="Report format.")
     parser.add_argument("--top_n", type=int, default=5, help="Number of top IPs and targets to include.")
     parser.add_argument("--window_minutes", type=int, default=5, help="Time bucket size for alert counts.")
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
@@ -539,7 +548,12 @@ def main() -> int:
     try:
         alerts = load_alerts(args.input)
         summary = build_summary(alerts, window_minutes=args.window_minutes)
-        write_report(summary, alerts, args.format, args.output, args.top_n)
+        output = args.output
+        if output is None and args.format == "html":
+            output = default_report_path(args.input)
+        write_report(summary, alerts, args.format, output, args.top_n)
+        if output is not None:
+            LOGGER.info("Wrote %s report to %s", args.format, Path(output).resolve())
     except FileNotFoundError:
         LOGGER.error(
             "Alerts file not found: %s. Generate alerts by running IDSCore or placing Alerts.json there.",
