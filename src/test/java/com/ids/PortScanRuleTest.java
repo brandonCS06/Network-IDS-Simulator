@@ -9,7 +9,7 @@ import java.util.List;
 public class PortScanRuleTest {
 
     private PortScanRule rule;
-    private static final int PORT_THRESHOLD = 30;
+    private static final int PORT_THRESHOLD = 10;
     private static final long WINDOW_MS = 60_000;
 
     @Before
@@ -41,7 +41,7 @@ public class PortScanRuleTest {
     @Test
     public void testBelowPortThresholdNoAlert() {
         // Add events with different ports (below threshold)
-        for (int i = 0; i < 15; i++) {
+        for (int i = 0; i < PORT_THRESHOLD - 1; i++) {
             HashMap<String, Object> metadata = new HashMap<>();
             metadata.put("destination_port", 8000 + i);
             Event event = new Event(1000 + (i * 100), "192.168.1.1", "alice", "PROBE", "web", metadata);
@@ -53,7 +53,7 @@ public class PortScanRuleTest {
 
     @Test
     public void testPortScanDetection() {
-        // Add events with 30 unique ports to trigger alert
+        // Add events with enough unique ports to trigger alert
         for (int i = 0; i < PORT_THRESHOLD; i++) {
             HashMap<String, Object> metadata = new HashMap<>();
             metadata.put("destination_port", 1024 + i);
@@ -95,16 +95,16 @@ public class PortScanRuleTest {
 
     @Test
     public void testMultipleSourceIPs() {
-        // Add 29 ports from IP 1 (below threshold)
-        for (int i = 0; i < 29; i++) {
+        // Add ports from IP 1 below threshold
+        for (int i = 0; i < PORT_THRESHOLD - 1; i++) {
             HashMap<String, Object> metadata = new HashMap<>();
             metadata.put("destination_port", 1024 + i);
             Event event = new Event(1000 + (i * 100), "192.168.1.1", "alice", "PROBE", "web", metadata);
             rule.onEvent(event);
         }
         
-        // Add 29 ports from IP 2 (should not trigger)
-        for (int i = 0; i < 29; i++) {
+        // Add ports from IP 2 below threshold (should not trigger)
+        for (int i = 0; i < PORT_THRESHOLD - 1; i++) {
             HashMap<String, Object> metadata = new HashMap<>();
             metadata.put("destination_port", 2024 + i);
             Event event = new Event(2000 + (i * 100), "192.168.1.2", "bob", "PROBE", "web", metadata);
@@ -116,7 +116,7 @@ public class PortScanRuleTest {
 
     @Test
     public void testWindowExpiration() {
-        // Add 30 unique ports within window
+        // Add enough unique ports within window to trigger
         for (int i = 0; i < PORT_THRESHOLD; i++) {
             HashMap<String, Object> metadata = new HashMap<>();
             metadata.put("destination_port", 1024 + i);

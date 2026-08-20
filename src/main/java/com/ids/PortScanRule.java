@@ -10,7 +10,7 @@ import java.util.Set;
 
 public class PortScanRule implements RuleEngineRules {
     private static final long DEFAULT_WINDOW_MS = 60_000;
-    private static final int DEFAULT_PORT_THRESHOLD = 30;
+    private static final int DEFAULT_PORT_THRESHOLD = 10;
     private final Map<String, List<Event>> recentEventsByIp = new HashMap<>();
     private final long windowMs;
     private final int portThreshold;

@@ -121,8 +121,8 @@ public class RuleEngineTest {
             events.add(new Event(1000 + (i * 100), "192.168.1.1", "alice", "LOGIN_FAIL", "web", new HashMap<>()));
         }
         
-        // Add port scan events
-        for (int i = 0; i < 30; i++) {
+        // Add enough port scan events to trigger one alert with the default threshold.
+        for (int i = 0; i < 10; i++) {
             HashMap<String, Object> metadata = new HashMap<>();
             metadata.put("destination_port", 1024 + i);
             events.add(new Event(2000 + (i * 100), "192.168.1.2", "bob", "PROBE", "web", metadata));
