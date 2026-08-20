@@ -1,0 +1,14 @@
+2026-08-20T16:20:58.328302+00:00 UbuntuServer sshd-session[1680]: Failed password for vboxuser from 10.0.0.30 port 52604 ssh2
+2026-08-20T16:21:16.294283+00:00 UbuntuServer sshd-session[1680]: Failed password for vboxuser from 10.0.0.30 port 52604 ssh2
+2026-08-20T16:21:19.634293+00:00 UbuntuServer sshd-session[1680]: Failed password for vboxuser from 10.0.0.30 port 52604 ssh2
+2026-08-20T16:52:15.277150+00:00 UbuntuServer sshd-session[1797]: Failed password for vboxuser from 10.0.0.30 port 35766 ssh2
+2026-08-20T16:52:21.992633+00:00 UbuntuServer sshd-session[1797]: Failed password for vboxuser from 10.0.0.30 port 35766 ssh2
+2026-08-20T16:52:26.697642+00:00 UbuntuServer sshd-session[1797]: Failed password for vboxuser from 10.0.0.30 port 35766 ssh2
+2026-08-20T16:52:35.385695+00:00 UbuntuServer sshd-session[1802]: Failed password for vboxuser from 10.0.0.30 port 56448 ssh2
+2026-08-20T16:52:39.799914+00:00 UbuntuServer sshd-session[1802]: Failed password for vboxuser from 10.0.0.30 port 56448 ssh2
+2026-08-20T16:52:43.793303+00:00 UbuntuServer sshd-session[1802]: Failed password for vboxuser from 10.0.0.30 port 56448 ssh2
+2026-08-20T16:53:12.572272+00:00 UbuntuServer sudo: vboxuser : TTY=/dev/tty1 ; PWD=/home/vboxuser ; USER=root ; COMMAND=/usr/bin/grep Failed password /var/log/auth.log
+2026-08-20T16:54:22.845741+00:00 UbuntuServer sudo: vboxuser : TTY=/dev/tty1 ; PWD=/home/vboxuser ; USER=root ; COMMAND=/usr/bin/grep -a Failed password /var/log/auth.log
+2026-08-20T17:00:25.394972+00:00 UbuntuServer sudo: vboxuser : TTY=/dev/tty1 ; PWD=/home/vboxuser ; USER=root ; COMMAND=/usr/bin/grep -a Failed password /var/log/auth.log
+2026-08-20T17:16:10.317018+00:00 UbuntuServer sudo: vboxuser : TTY=/dev/tty1 ; PWD=/home/vboxuser ; USER=root ; COMMAND=/usr/bin/grep -a Failed password /var/log.auth.log
+2026-08-20T17:16:29.965911+00:00 UbuntuServer sudo: vboxuser : TTY=/dev/tty1 ; PWD=/home/vboxuser ; USER=root ; COMMAND=/usr/bin/grep -a Failed password /var/log/auth.log
