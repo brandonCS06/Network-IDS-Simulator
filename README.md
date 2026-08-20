@@ -34,7 +34,7 @@ The IDS Simulator is designed to:
 
 - **log_generator.py** - Generates synthetic security events with configurable normal and attack traffic patterns
 - **log_parser.py** - Parses raw logs into the standardized Event format
-- **report_generator.py** - Summarizes alerts with statistics by rule, source IP, top attackers, alert explanations, metrics, and optional HTML output
+- **report_generator.py** - Summarizes alerts with statistics by rule, source IP, top attackers, alert explanations, metrics, and default HTML output
 - **demo.py** - Runs the demo pipeline end to end: generate events, run the Java IDS, and create an HTML report
 
 ### Data Flow
@@ -213,7 +213,7 @@ epoch-millisecond or ISO-8601 timestamps, and writes the Java-compatible
 python python/report_generator.py
 ```
 
-Outputs a summary of alerts including:
+Creates `report.html` next to the selected `Alerts.json` by default. The report includes:
 - Total alert count
 - Alerts by detection rule
 - Alerts by severity
@@ -225,6 +225,7 @@ Outputs a summary of alerts including:
 Reports can also be exported for automation:
 
 ```bash
+python python/report_generator.py --format text
 python python/report_generator.py --format json --output report.json
 python python/report_generator.py --format csv --output report.csv
 python python/report_generator.py --format html --output report.html
@@ -397,11 +398,8 @@ mvn clean compile
 # Run the IDS
 java -cp "target/classes:$HOME/.m2/repository/com/google/code/gson/gson/2.10.1/gson-2.10.1.jar" com.ids.IDSCore Events.json
 
-# Generate a report
+# Generate the default HTML report
 python python/report_generator.py
-
-# Generate a demo-friendly HTML report
-python python/report_generator.py --format html --output report.html
 ```
 
 ### Example 2: Process Custom Events
