@@ -66,9 +66,9 @@ public class IDSCore {
     }
 
     public void loadEvents(String filePath) throws IOException {
-        File file = new File(filePath);
+        File file = resolveEventsFile(filePath);
         if (!file.exists()) {
-            throw new IOException("Events file not found: " + filePath);
+            throw new IOException(buildMissingEventsMessage(filePath));
         }
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             StringBuilder jsonBuilder = new StringBuilder();
@@ -82,9 +82,39 @@ public class IDSCore {
             this.events = Event.fromJsonArray(json);
             System.out.println("Loaded " + this.events.size() + " events from " + filePath);
         }   catch (IOException e) {
-                System.err.println("Error loading events: " + e.getMessage());
-                throw e;
-            }
+            System.err.println("Error loading events: " + e.getMessage());
+            throw e;
+        }
+    }
+
+    private File resolveEventsFile(String filePath) {
+        File requested = new File(filePath);
+        if (requested.exists() || requested.isAbsolute()) {
+            return requested;
+        }
+
+        File moduleRootFile = new File("IDS-simulator", filePath);
+        if (moduleRootFile.exists()) {
+            return moduleRootFile;
+        }
+
+        return requested;
+    }
+
+    private String buildMissingEventsMessage(String filePath) {
+        File requested = new File(filePath);
+        StringBuilder message = new StringBuilder();
+        message.append("Events file not found: ").append(filePath).append("\n");
+        message.append("Looked in: ").append(requested.getAbsolutePath());
+
+        if (!requested.isAbsolute()) {
+            File moduleRootFile = new File("IDS-simulator", filePath);
+            message.append("\nAlso tried: ").append(moduleRootFile.getAbsolutePath());
+        }
+
+        message.append("\nGenerate one from the project root with: python python/log_generator.py --output Events.json");
+        message.append("\nOr from the parent workspace with: python IDS-simulator/python/log_generator.py --output IDS-simulator/Events.json");
+        return message.toString();
     }
 
     public void processEvents() {
@@ -110,6 +140,15 @@ public class IDSCore {
         System.out.println("Exported alerts to " + filePath);
     }
 
+    private static String defaultAlertsPath() {
+        File moduleRoot = new File("IDS-simulator");
+        if (moduleRoot.isDirectory()) {
+            return new File(moduleRoot, "Alerts.json").getPath();
+        }
+
+        return "Alerts.json";
+    }
+
     public List<Alert> getAlerts(){
         return this.alertManager.getAlerts();
     }
@@ -129,7 +168,7 @@ public class IDSCore {
             IDSCore core = new IDSCore(ruleConfig);
             core.loadEvents(eventsFile);
             core.processEvents();
-            core.exportAlerts("Alerts.json");
+            core.exportAlerts(defaultAlertsPath());
             //Export to file
         } catch (IOException e) {
             System.err.println("Failed to run IDS Core: " + e.getMessage());
