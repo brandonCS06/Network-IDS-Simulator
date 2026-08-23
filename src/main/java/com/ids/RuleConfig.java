@@ -104,7 +104,7 @@ public class RuleConfig {
 
     public static class PortScanConfig {
         public long window_ms = 60_000L;
-        public int port_threshold = 10;
+        public int port_threshold = 30;
     }
 
     public static class SuspiciousDnsConfig {
