@@ -11,18 +11,23 @@ from log_parser import Event
 
 
 """
-Ubuntu log parser for converting sshd authentication activity and UFW firewall
-packet logs into the canonical Events.json schema consumed by the Java IDS
-engine.
+Ubuntu log parser for converting sshd authentication activity, UFW firewall
+packet logs, and tcpdump-style ICMP sweep logs into the canonical Events.json
+schema consumed by the Java IDS engine.
 
-The parser emits brute-force-ready SSH login events and port-scan-ready UFW
-probe events. It supports both traditional syslog timestamps, such as:
+The parser emits brute-force-ready SSH login events, port-scan-ready UFW
+probe events, and ICMP-sweep-ready echo request events. It supports both
+traditional syslog timestamps, such as:
 
     Aug 20 12:03:01 ubuntu sshd[1234]: Failed password for alice from ...
 
 and ISO-8601 journal/auth exports, such as:
 
     2026-08-20T16:20:58.328302+00:00 UbuntuServer sshd-session[1680]: ...
+
+It also supports tcpdump ICMP lines, such as:
+
+    2026-08-23 19:47:01.811209 IP 10.0.0.30 > 10.0.0.101: ICMP echo request, id 7280, seq 226, length 64
 """
 
 
@@ -61,6 +66,17 @@ SSH_LOGIN_RE = re.compile(
 
 UFW_ACTION_RE = re.compile(r"^\[UFW\s+(?P<action>[^\]]+)\]\s+(?P<body>.*)$")
 UFW_KEY_VALUE_RE = re.compile(r"(?P<key>[A-Z][A-Z0-9_]*)=(?P<value>\S*)")
+TCPDUMP_ICMP_RE = re.compile(
+    r"^(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)\s+"
+    r"IP\s+"
+    r"(?P<source_ip>\S+)\s+>\s+"
+    r"(?P<destination_ip>[^:]+):\s+"
+    r"ICMP\s+echo\s+(?P<icmp_kind>request|reply)"
+    r"(?:,\s+id\s+(?P<icmp_id>\d+))?"
+    r"(?:,\s+seq\s+(?P<sequence>\d+))?"
+    r"(?:,\s+length\s+(?P<packet_length>\d+))?"
+    r"\s*$"
+)
 TCP_FLAG_TOKENS = {
     "FIN",
     "SYN",
@@ -173,6 +189,10 @@ def parse_line(line: str, line_number: int = 0, syslog_year: int | None = None) 
     if not line.strip():
         return None
 
+    tcpdump_event = parse_tcpdump_icmp_line(line)
+    if tcpdump_event is not None:
+        return tcpdump_event
+
     parsed = parse_log_envelope(line, syslog_year or datetime.datetime.now(UTC).year)
     if parsed is None:
         LOGGER.debug("Skipping unrecognized log envelope on line %s: %s", line_number, line)
@@ -281,6 +301,42 @@ def parse_ufw_message(parsed: ParsedLogLine, raw_line: str) -> Event | None:
     return event
 
 
+def parse_tcpdump_icmp_line(line: str) -> Event | None:
+    icmp_match = TCPDUMP_ICMP_RE.match(line)
+    if icmp_match is None:
+        return None
+
+    values = icmp_match.groupdict()
+    if values["icmp_kind"] != "request":
+        return None
+
+    metadata = {
+        "protocol": "ICMP",
+        "icmp_type": 8,
+        "destination_ip": values["destination_ip"],
+        "raw_line": line,
+    }
+    optional_int_fields = {
+        "icmp_id": "icmp_id",
+        "sequence": "sequence",
+        "packet_length": "packet_length",
+    }
+    for source_key, metadata_key in optional_int_fields.items():
+        parsed_int = coerce_optional_int(values.get(source_key))
+        if parsed_int is not None:
+            metadata[metadata_key] = parsed_int
+
+    event: Event = {
+        "timestamp": parse_tcpdump_timestamp(values["timestamp"]),
+        "source_ip": values["source_ip"],
+        "user": "unknown",
+        "action": "ICMP_ECHO_REQUEST",
+        "target": values["destination_ip"],
+        "metadata": metadata,
+    }
+    return event
+
+
 def parse_ufw_key_values(message: str) -> dict[str, str]:
     return {match.group("key"): match.group("value") for match in UFW_KEY_VALUE_RE.finditer(message)}
 
@@ -345,6 +401,18 @@ def parse_syslog_timestamp(month: str, day: int, clock: str, year: int) -> int:
         )
     except ValueError as exc:
         raise ValueError(f"invalid syslog timestamp: {month} {day} {clock}") from exc
+    parsed = parsed.replace(tzinfo=UTC)
+    return int(parsed.timestamp() * 1000)
+
+
+def parse_tcpdump_timestamp(value: str) -> int:
+    try:
+        parsed = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S.%f")
+    except ValueError:
+        try:
+            parsed = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+        except ValueError as exc:
+            raise ValueError(f"invalid tcpdump timestamp: {value}") from exc
     parsed = parsed.replace(tzinfo=UTC)
     return int(parsed.timestamp() * 1000)
 

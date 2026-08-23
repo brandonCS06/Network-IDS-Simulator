@@ -114,6 +114,40 @@ class UbuntuAuthParserTest(unittest.TestCase):
         self.assertTrue(event["metadata"]["syn"])
         self.assertNotIn("ack", event["metadata"])
 
+    def test_parse_tcpdump_icmp_echo_request(self):
+        line = (
+            "2026-08-23 19:47:01.811209 IP 10.0.0.30 > 10.0.0.101: "
+            "ICMP echo request, id 7280, seq 226, length 64"
+        )
+
+        event = ubuntu_auth_parser.parse_line(line)
+
+        self.assertIsNotNone(event)
+        assert event is not None
+        expected = datetime.datetime(
+            2026, 8, 23, 19, 47, 1, 811209, tzinfo=datetime.timezone.utc
+        )
+        self.assertEqual(int(expected.timestamp() * 1000), event["timestamp"])
+        self.assertEqual("10.0.0.30", event["source_ip"])
+        self.assertEqual("unknown", event["user"])
+        self.assertEqual("ICMP_ECHO_REQUEST", event["action"])
+        self.assertEqual("10.0.0.101", event["target"])
+        self.assertEqual("ICMP", event["metadata"]["protocol"])
+        self.assertEqual(8, event["metadata"]["icmp_type"])
+        self.assertEqual("10.0.0.101", event["metadata"]["destination_ip"])
+        self.assertEqual(7280, event["metadata"]["icmp_id"])
+        self.assertEqual(226, event["metadata"]["sequence"])
+        self.assertEqual(64, event["metadata"]["packet_length"])
+        self.assertEqual(line, event["metadata"]["raw_line"])
+
+    def test_skip_tcpdump_icmp_echo_reply(self):
+        line = (
+            "2026-08-23 19:47:01.811255 IP 10.0.0.101 > 10.0.0.30: "
+            "ICMP echo reply, id 7280, seq 226, length 64"
+        )
+
+        self.assertIsNone(ubuntu_auth_parser.parse_line(line))
+
     def test_skip_malformed_ufw_line_without_destination_port(self):
         line = (
             "2026-08-20T21:21:26.389826+00:00 UbuntuServer kernel: "
@@ -171,6 +205,23 @@ class UbuntuAuthParserTest(unittest.TestCase):
         self.assertEqual("PROBE", events[1]["action"])
         self.assertEqual(443, events[1]["metadata"]["destination_port"])
 
+    def test_parse_file_with_mixed_icmp_request_and_reply_lines(self):
+        lines = [
+            "2026-08-23 19:47:01.811209 IP 10.0.0.30 > 10.0.0.101: ICMP echo request, id 7280, seq 226, length 64",
+            "2026-08-23 19:47:01.811255 IP 10.0.0.101 > 10.0.0.30: ICMP echo reply, id 7280, seq 226, length 64",
+            "2026-08-23 19:47:01.845346 IP 10.0.0.30 > 10.0.0.102: ICMP echo request, id 7280, seq 229, length 64",
+        ]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_path = Path(temp_dir) / "icmp_sweep.log"
+            log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+            events, skipped = ubuntu_auth_parser.parse_file(log_path)
+
+        self.assertEqual(2, len(events))
+        self.assertEqual(1, skipped)
+        self.assertEqual(["ICMP_ECHO_REQUEST", "ICMP_ECHO_REQUEST"], [event["action"] for event in events])
+        self.assertEqual(["10.0.0.101", "10.0.0.102"], [event["metadata"]["destination_ip"] for event in events])
+
     def test_parse_directory_combines_log_files(self):
         ssh_line = (
             "2026-08-20T16:20:58.328302+00:00 UbuntuServer "
@@ -192,6 +243,62 @@ class UbuntuAuthParserTest(unittest.TestCase):
         self.assertEqual(2, len(events))
         self.assertEqual(0, skipped)
         self.assertEqual(["LOGIN_FAIL", "PROBE"], [event["action"] for event in events])
+
+    def test_parse_directory_combines_ssh_ufw_and_icmp_logs(self):
+        ssh_line = (
+            "2026-08-20T16:20:58.328302+00:00 UbuntuServer "
+            "sshd-session[1680]: Failed password for vboxuser from 10.0.0.30 port 52604 ssh2"
+        )
+        ufw_line = (
+            "2026-08-20T21:21:26.389826+00:00 UbuntuServer kernel: "
+            "[UFW BLOCK] IN=enp0s8 OUT= SRC=10.0.0.30 DST=10.0.0.10 "
+            "PROTO=TCP SPT=41816 DPT=443 SYN"
+        )
+        icmp_line = (
+            "2026-08-23 19:47:01.811209 IP 10.0.0.30 > 10.0.0.101: "
+            "ICMP echo request, id 7280, seq 226, length 64"
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_dir = Path(temp_dir)
+            (log_dir / "ssh_failed.log").write_text(ssh_line + "\n", encoding="utf-8")
+            (log_dir / "ufw.log").write_text(ufw_line + "\n", encoding="utf-8")
+            (log_dir / "icmp_sweep.log").write_text(icmp_line + "\n", encoding="utf-8")
+
+            events, skipped = ubuntu_auth_parser.parse_directory(log_dir)
+
+        self.assertEqual(3, len(events))
+        self.assertEqual(0, skipped)
+        self.assertEqual(
+            ["ICMP_ECHO_REQUEST", "LOGIN_FAIL", "PROBE"],
+            [event["action"] for event in events],
+        )
+
+    def test_icmp_sweep_log_produces_threshold_events(self):
+        lines = []
+        for i in range(31):
+            destination = f"10.0.0.{100 + i}"
+            lines.append(
+                "2026-08-23 19:47:02.000000 "
+                f"IP 10.0.0.30 > {destination}: ICMP echo request, id 7280, seq {i}, length 64"
+            )
+            lines.append(
+                "2026-08-23 19:47:02.000001 "
+                f"IP {destination} > 10.0.0.30: ICMP echo reply, id 7280, seq {i}, length 64"
+            )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_path = Path(temp_dir) / "icmp_sweep.log"
+            log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+            events, skipped = ubuntu_auth_parser.parse_file(log_path)
+
+        destinations = {event["metadata"]["destination_ip"] for event in events}
+        self.assertEqual(31, len(events))
+        self.assertEqual(31, skipped)
+        self.assertEqual({"10.0.0.30"}, {event["source_ip"] for event in events})
+        self.assertEqual(31, len(destinations))
+        self.assertTrue(all(event["action"] == "ICMP_ECHO_REQUEST" for event in events))
 
     def test_parse_path_uses_directory_when_given_directory(self):
         with tempfile.TemporaryDirectory() as temp_dir:
