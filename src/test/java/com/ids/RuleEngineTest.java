@@ -112,7 +112,7 @@ public class RuleEngineTest {
     @Test
     public void testMultipleRulesTriggering() {
         engine.registerRule(new BruteForceRule());
-        engine.registerRule(new PortScanRule());
+        engine.registerRule(new PortScanRule(60_000L, 10));
         
         List<Event> events = new ArrayList<>();
         
@@ -121,7 +121,7 @@ public class RuleEngineTest {
             events.add(new Event(1000 + (i * 100), "192.168.1.1", "alice", "LOGIN_FAIL", "web", new HashMap<>()));
         }
         
-        // Add enough port scan events to trigger one alert with the default threshold.
+        // Add enough port scan events to trigger one alert with the test threshold.
         for (int i = 0; i < 10; i++) {
             HashMap<String, Object> metadata = new HashMap<>();
             metadata.put("destination_port", 1024 + i);

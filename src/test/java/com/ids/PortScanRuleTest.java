@@ -14,7 +14,7 @@ public class PortScanRuleTest {
 
     @Before
     public void setUp() {
-        rule = new PortScanRule();
+        rule = new PortScanRule(WINDOW_MS, PORT_THRESHOLD);
     }
 
     @Test
